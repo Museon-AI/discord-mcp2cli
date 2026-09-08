@@ -163,6 +163,44 @@ async function stopChild(child) {
   if (child.exitCode === null) child.kill('SIGKILL');
 }
 
+async function closeStdioClientCleanly(client, transport, label) {
+  const child = transport._process;
+  assert.ok(child, `${label} stdio transport did not spawn a child process`);
+  let exited = child.exitCode !== null;
+  let exitCode = child.exitCode;
+  let signalCode = child.signalCode;
+  let timeoutHandle;
+
+  try {
+    if (!exited) {
+      child.stdin?.end();
+      [exitCode, signalCode] = await Promise.race([
+        once(child, 'exit'),
+        new Promise((_, reject) => {
+          timeoutHandle = setTimeout(
+            () => reject(new Error(`${label} stdio child did not exit within 7 seconds`)),
+            7_000,
+          );
+          timeoutHandle.unref();
+        }),
+      ]);
+      exited = true;
+    }
+    assert.equal(exitCode, 0, `${label} stdio child exited with code ${exitCode}`);
+    assert.equal(signalCode, null, `${label} stdio child exited on signal ${signalCode}`);
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+    if (!exited && child.exitCode === null && child.signalCode === null) {
+      child.kill();
+      await Promise.race([
+        once(child, 'exit'),
+        new Promise((resolveWait) => setTimeout(resolveWait, 1_000).unref()),
+      ]);
+    }
+    await client.close().catch(() => {});
+  }
+}
+
 async function postChunked(endpoint, body, headers = {}) {
   return new Promise((resolveResponse, reject) => {
     const req = request(
@@ -348,7 +386,7 @@ try {
       assert.equal(result.structuredContent?.category, 'client');
     }
   } finally {
-    await catalogClient.close();
+    await closeStdioClientCleanly(catalogClient, catalogTransport, 'catalog');
   }
 
   const transport = new StdioClientTransport({
@@ -417,7 +455,43 @@ try {
     assert.equal(browse.isError, false);
     assert.ok(browse.structuredContent?.matches?.length > 1);
   } finally {
-    await client.close();
+    await closeStdioClientCleanly(client, transport, 'serve');
+  }
+
+  const otelPort = await reserveLoopbackPort();
+  const otelTransport = new StdioClientTransport({
+    command: process.execPath,
+    args: [cliEntry, 'serve'],
+    cwd: installRoot,
+    env: {
+      ...serverEnvironment,
+      OTEL_ENABLED: 'true',
+      OTEL_EXPORTER_OTLP_ENDPOINT: `http://127.0.0.1:${otelPort}`,
+    },
+    stderr: 'pipe',
+  });
+  const otelClient = new Client(
+    { name: 'discord-mcp-package-otel-acceptance', version: '0.0.0' },
+    { capabilities: {} },
+  );
+
+  try {
+    await otelClient.connect(otelTransport);
+    const { tools: otelTools } = await otelClient.listTools();
+    assert.deepEqual(
+      otelTools.map((tool) => tool.name),
+      [
+        'build_discord_server',
+        'guild_blueprint_apply',
+        'guild_blueprint_evidence',
+        'mcp_tools_search',
+        'mcp_tools_read',
+        'mcp_tools_write',
+        'mcp_tools_destructive',
+      ],
+    );
+  } finally {
+    await closeStdioClientCleanly(otelClient, otelTransport, 'OTEL');
   }
 
   const httpPort = await reserveLoopbackPort();

@@ -33,6 +33,7 @@ vi.mock('@discord-mcp/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@discord-mcp/core')>();
   return {
     ...actual,
+    createAuditSink: vi.fn(actual.createAuditSink),
     createLogger: vi.fn(makeLoggerStub),
     createGatewayClient: vi.fn(),
     wrapRestWithResilience: vi.fn(actual.wrapRestWithResilience),
@@ -42,7 +43,12 @@ vi.mock('../otel.js', () => ({
   startOtel: vi.fn(() => ({ shutdown: vi.fn(async () => {}) })),
 }));
 
-import { createGatewayClient, createLogger, wrapRestWithResilience } from '@discord-mcp/core';
+import {
+  createAuditSink,
+  createGatewayClient,
+  createLogger,
+  wrapRestWithResilience,
+} from '@discord-mcp/core';
 import { readActivity, resolveActivityPath } from '../lib/activity.js';
 import { startOtel } from '../otel.js';
 import { startStdio } from './stdio.js';
@@ -101,11 +107,123 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
   rmSync(activityRoot, { recursive: true, force: true });
   process.env = { ...savedEnv };
 });
 
 describe('startStdio', () => {
+  it('cleans up Gateway, audit and OTel once when the client disconnects', async () => {
+    process.env.GATEWAY = '1';
+    process.env.OTEL_ENABLED = 'true';
+    const order: string[] = [];
+    const stop = vi.fn(async () => {
+      throw new Error('gateway stop failed');
+    });
+    vi.mocked(createGatewayClient).mockReturnValue({ start: vi.fn(async () => {}), stop });
+    const auditShutdown = vi.fn(async () => {
+      order.push('audit');
+      throw new Error('audit flush failed');
+    });
+    vi.mocked(createAuditSink).mockReturnValueOnce({ emit: vi.fn(), shutdown: auditShutdown });
+    const otelShutdown = vi.fn(async () => {
+      order.push('otel');
+    });
+    vi.mocked(startOtel).mockReturnValueOnce({ shutdown: otelShutdown });
+    const exit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    // A supplied transport must never install process hooks, even when the
+    // option is omitted. Real SDK close callbacks exercise shutdown re-entry.
+    const signalsBefore = process.listenerCount('SIGTERM');
+    await startStdio({ transport: serverTransport });
+    const client = new Client({ name: 'stdio-close-test', version: '0.0.0' });
+    await client.connect(clientTransport);
+    await client.close();
+    await vi.waitFor(() => expect(otelShutdown).toHaveBeenCalledTimes(1));
+    await serverTransport.close();
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(auditShutdown).toHaveBeenCalledTimes(1);
+    expect(order).toEqual(['audit', 'otel']);
+    expect(process.listenerCount('SIGTERM')).toBe(signalsBefore);
+    expect(exit).not.toHaveBeenCalled();
+  });
+
+  it('cleans up a transport that closes during connect without starting Gateway', async () => {
+    process.env.GATEWAY = '1';
+    process.env.OTEL_ENABLED = 'true';
+    const gateway = { start: vi.fn(async () => {}), stop: vi.fn(async () => {}) };
+    vi.mocked(createGatewayClient).mockReturnValue(gateway);
+    const [, transport] = InMemoryTransport.createLinkedPair();
+    const originalClose = vi.fn();
+    transport.onclose = originalClose;
+    vi.spyOn(transport, 'start').mockImplementation(async () => transport.close());
+    await startStdio({ transport, registerSignalHandlers: false });
+    expect(originalClose).toHaveBeenCalled();
+    expect(gateway.start).not.toHaveBeenCalled();
+    expect(gateway.stop).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(startOtel).mock.results.at(-1)?.value.shutdown).toHaveBeenCalledTimes(1);
+  });
+
+  it('cleans up resources and preserves the original connect failure', async () => {
+    process.env.OTEL_ENABLED = 'true';
+    const [, transport] = InMemoryTransport.createLinkedPair();
+    vi.spyOn(transport, 'start').mockRejectedValue(new Error('client disappeared'));
+    await expect(startStdio({ transport, registerSignalHandlers: false })).rejects.toThrow(
+      'client disappeared',
+    );
+    expect(vi.mocked(startOtel).mock.results.at(-1)?.value.shutdown).toHaveBeenCalledTimes(1);
+  });
+
+  it('disconnects while Gateway is still starting', async () => {
+    process.env.GATEWAY = '1';
+    let finishStart!: () => void;
+    const start = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishStart = resolve;
+        }),
+    );
+    const stop = vi.fn(async () => {
+      finishStart();
+    });
+    vi.mocked(createGatewayClient).mockReturnValue({ start, stop });
+    const [clientTransport, transport] = InMemoryTransport.createLinkedPair();
+    const booting = startStdio({ transport, registerSignalHandlers: false });
+    await vi.waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+    await clientTransport.close();
+    await booting;
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(lastLogger().info.mock.calls.some((c) => c[1] === 'discord-mcp ready (stdio)')).toBe(
+      false,
+    );
+  });
+
+  it('bounds stalled Gateway cleanup while still flushing audit and OTel', async () => {
+    process.env.GATEWAY = '1';
+    process.env.OTEL_ENABLED = 'true';
+    const stop = vi.fn(() => new Promise<void>(() => {}));
+    vi.mocked(createGatewayClient).mockReturnValue({ start: vi.fn(async () => {}), stop });
+    const auditShutdown = vi.fn(async () => {});
+    vi.mocked(createAuditSink).mockReturnValueOnce({ emit: vi.fn(), shutdown: auditShutdown });
+    const client = await boot();
+    const otelShutdown = vi.mocked(startOtel).mock.results.at(-1)?.value.shutdown;
+    vi.useFakeTimers();
+    await client.close();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(auditShutdown).toHaveBeenCalledTimes(1);
+    expect(otelShutdown).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(lastLogger().warn).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(lastLogger().warn).toHaveBeenCalledExactlyOnceWith(
+      { timeoutMs: 5_000 },
+      'shutdown timed out',
+    );
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('does not load the OpenTelemetry runtime when telemetry is disabled', async () => {
     const client = await boot();
     try {

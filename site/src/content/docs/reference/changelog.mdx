@@ -13,6 +13,17 @@ commit history and downloadable artifacts, see
 
 - No unreleased changes.
 
+## v0.26.1 - stdio lifecycle cleanup
+
+- Closed stdio clients now trigger one deduplicated cleanup path so Gateway,
+  MCP, audit, and OpenTelemetry resources are released when the host closes
+  its pipe. Cleanup is bounded to five seconds before the child exits.
+- Multiple active AI-client sessions still use separate stdio server
+  processes by design. On Windows, a PowerShell `npx` launch can also show
+  additional `npm`/`cmd`/PowerShell wrapper processes for the server's
+  lifetime; a direct Node launcher avoids those
+  wrappers but does not create a global server singleton.
+
 ## v0.26.0 - security and pagination hardening
 
 - Added resumable `audit_log_get` pages through an optional `before` cursor and

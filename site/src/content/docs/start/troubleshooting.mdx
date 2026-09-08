@@ -62,6 +62,27 @@ share, or screenshot it.
    to the CLI installation that created it; regenerate it after moving or reinstalling Node.
 4. Fully quit and reopen the client, then inspect its MCP/server logs.
 
+## I see many `discord-mcp` processes
+
+Each active MCP client session owns its own stdio child. Several open sessions
+therefore legitimately produce several server processes; discord-mcp does not
+use a global singleton because sessions can carry different profiles,
+environment, and tool boundaries.
+
+On Windows, a PowerShell launch through `npx` can add additional
+`npm`/`cmd`/PowerShell wrapper processes that remain for the server's
+lifetime. Use the generated
+launcher first, then inspect the client process tree before terminating
+anything. A direct Node installation and launcher avoids those package-manager
+wrappers. It does not merge separate client sessions into one process.
+
+When a client closes its stdio pipe, the server starts one deduplicated cleanup
+for that child and releases its resources before exiting; cleanup is bounded
+to five seconds. If a child remains after the host is fully closed, capture
+the client name, CLI version, Node version, and redacted process-tree output,
+then restart that client once. Do not kill another session that is still in
+use.
+
 ## I changed the token, profile, config, or version but nothing changed
 
 The MCP server is a child process of the client. It reads the current profile, pinned package,

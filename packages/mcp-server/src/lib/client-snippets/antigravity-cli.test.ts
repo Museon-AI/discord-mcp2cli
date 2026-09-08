@@ -6,7 +6,7 @@ const baseConfig = {
   serverArgs: [
     '--yes',
     '--loglevel=error',
-    '@discord-mcp/cli@0.26.0',
+    '@discord-mcp/cli@0.26.1',
     'serve',
     '--profile',
     'devbot',

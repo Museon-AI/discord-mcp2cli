@@ -20,15 +20,80 @@ import type { OtelHandle } from '../otel.js';
  * @param opts.transport Transport to connect the MCP server to. Defaults to a
  *   real `StdioServerTransport`; tests pass an in-memory pair so the whole
  *   boot chain runs for real.
- * @param opts.registerSignalHandlers Register the SIGINT/SIGTERM shutdown
- *   hooks. Defaults to true; tests disable it because the handlers call
- *   `process.exit(0)` and would outlive the test process.
+ * @param opts.registerSignalHandlers Register process shutdown hooks for real
+ *   stdio. Defaults to true; supplied transports never exit their host process.
  */
 export async function startStdio(
   opts: { transport?: Transport; registerSignalHandlers?: boolean } = {},
 ): Promise<void> {
   const config = loadConfig();
   const logger = createLogger(config);
+  const ownsProcess = opts.transport === undefined && opts.registerSignalHandlers !== false;
+  let cleanup = async (): Promise<void> => {};
+  let shutdownPromise: Promise<void> | undefined;
+  let resourcesReady!: () => void;
+  const readyForCleanup = new Promise<void>((resolve) => {
+    resourcesReady = resolve;
+  });
+  const requestShutdown = (reason: string, exit = ownsProcess): Promise<void> => {
+    // Defer cleanup so the promise is assigned before server.close() can
+    // synchronously re-enter through transport.onclose.
+    shutdownPromise ??= Promise.resolve().then(async () => {
+      logger.info({ signal: reason }, 'shutting down');
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([
+          readyForCleanup.then(() => cleanup()),
+          new Promise<void>((resolve) => {
+            // Start the deadline on the first shutdown request, even if boot
+            // has not reached Gateway/server construction yet.
+            timeout = setTimeout(() => {
+              logger.warn({ timeoutMs: 5_000 }, 'shutdown timed out');
+              resolve();
+            }, 5_000);
+            timeout.unref();
+          }),
+        ]);
+      } catch (error) {
+        logger.warn(
+          { err: error instanceof Error ? error.message : String(error) },
+          'shutdown failed',
+        );
+      } finally {
+        clearTimeout(timeout);
+        removeProcessHooks();
+      }
+      if (exit && ownsProcess) process.exit(0);
+    });
+    return shutdownPromise;
+  };
+  const onSigint = () => void requestShutdown('SIGINT');
+  const onSigterm = () => void requestShutdown('SIGTERM');
+  const onInputEnd = () => void requestShutdown('stdin closed');
+  const onInputError = () => void requestShutdown('stdin error');
+  const onOutputError = () => void requestShutdown('stdout closed');
+  const removeProcessHooks = (): void => {
+    if (ownsProcess) {
+      process.off('SIGINT', onSigint);
+      process.off('SIGTERM', onSigterm);
+      process.stdin.off('end', onInputEnd);
+      process.stdin.off('close', onInputEnd);
+      process.stdin.off('error', onInputError);
+      process.stdout.off('error', onOutputError);
+    }
+  };
+
+  if (ownsProcess) {
+    process.on('SIGINT', onSigint);
+    process.on('SIGTERM', onSigterm);
+    process.stdin.on('end', onInputEnd);
+    process.stdin.on('close', onInputEnd);
+    process.stdin.on('error', onInputError);
+    process.stdout.on('error', onOutputError);
+    if (process.stdin.readableEnded || process.stdin.destroyed) {
+      void requestShutdown('stdin already closed');
+    }
+  }
 
   // Boot OTel BEFORE buildServer so global tracer/meter providers exist
   // by the time the telemetry middleware fetches them. Returns null when
@@ -109,6 +174,55 @@ export async function startStdio(
       registry: subscriptions,
       notifyResource,
     });
+  }
+
+  const transport = opts.transport ?? new StdioServerTransport();
+  const closeResource = async (name: string, close: () => Promise<unknown>): Promise<void> => {
+    try {
+      await close();
+    } catch (e) {
+      logger.warn({ err: e instanceof Error ? e.message : String(e) }, `${name} shutdown failed`);
+    }
+  };
+  cleanup = async () => {
+    // A stalled Gateway must not block closing MCP or flushing audit data.
+    await Promise.all([
+      closeResource('server', () => server.close()),
+      closeResource('gateway', async () => gatewayClient?.stop()),
+      (async () => {
+        // Flush audit before OTel because an audit sink may use its exporter.
+        await closeResource('audit sink', async () => auditSink.shutdown?.());
+        await closeResource('otel', async () => otel?.shutdown());
+      })(),
+    ]);
+  };
+  resourcesReady();
+  if (shutdownPromise !== undefined) {
+    await shutdownPromise;
+    return;
+  }
+
+  // Protocol.connect preserves an existing transport callback. Install it
+  // before connect so a close during transport.start() cannot be missed.
+  const transportOnClose = transport.onclose;
+  transport.onclose = () => {
+    transportOnClose?.();
+    void requestShutdown('transport closed');
+  };
+  try {
+    await server.connect(transport);
+  } catch (error) {
+    await requestShutdown('startup failure', false);
+    throw error;
+  }
+  if (shutdownPromise !== undefined) {
+    await shutdownPromise;
+    return;
+  }
+
+  // Listen to stdin before awaiting Gateway so a disconnected host can stop
+  // a pending Gateway connection instead of leaving an unresponsive child.
+  if (gatewayClient !== null) {
     try {
       await gatewayClient.start();
       logger.info({ gateway: 'enabled' }, 'Discord Gateway connected');
@@ -117,52 +231,18 @@ export async function startStdio(
         { err: e instanceof Error ? e.message : String(e) },
         'Discord Gateway failed to start - continuing in REST-only mode',
       );
-      gatewayClient = null;
+      if (shutdownPromise === undefined) {
+        await closeResource('gateway', () => gatewayClient!.stop());
+        gatewayClient = null;
+      }
     }
   }
-
+  if (shutdownPromise !== undefined) {
+    await shutdownPromise;
+    return;
+  }
   logger.info(
     { tools: registeredTools.length, gateway: gatewayClient !== null },
     'discord-mcp ready (stdio)',
   );
-
-  const transport = opts.transport ?? new StdioServerTransport();
-  await server.connect(transport);
-
-  // Graceful shutdown.
-  const shutdown = async (signal: string): Promise<void> => {
-    logger.info({ signal }, 'shutting down');
-    if (gatewayClient !== null) {
-      try {
-        await gatewayClient.stop();
-      } catch (e) {
-        logger.warn({ err: e instanceof Error ? e.message : String(e) }, 'gateway stop failed');
-      }
-    }
-    await server.close();
-    // Flush audit sink before OTel - sinks may write JSON lines to
-    // disk that we want persisted even if OTel teardown stalls.
-    if (auditSink.shutdown !== undefined) {
-      try {
-        await auditSink.shutdown();
-      } catch (e) {
-        logger.warn(
-          { err: e instanceof Error ? e.message : String(e) },
-          'audit sink shutdown failed',
-        );
-      }
-    }
-    if (otel !== null) {
-      try {
-        await otel.shutdown();
-      } catch (e) {
-        logger.warn({ err: e instanceof Error ? e.message : String(e) }, 'otel shutdown failed');
-      }
-    }
-    process.exit(0);
-  };
-  if (opts.registerSignalHandlers !== false) {
-    process.on('SIGINT', () => void shutdown('SIGINT'));
-    process.on('SIGTERM', () => void shutdown('SIGTERM'));
-  }
 }
