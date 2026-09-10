@@ -233,6 +233,39 @@ Read the [architecture](https://cappyeo.github.io/discord-mcp/architecture/), [o
 
 Run `discord-mcp --help` or see the full [CLI reference](https://cappyeo.github.io/discord-mcp/reference/cli/) for flags and examples.
 
+### Token-efficient shell CLI with mcp2cli
+
+The package also ships `discord-mcp-cli`, a thin adapter around
+[`mcp2cli`](https://github.com/knowsuchagency/mcp2cli). Use it when an AI agent has shell access
+and should discover Discord operations on demand instead of registering the full MCP catalog in
+the host's tool context.
+
+Install [uv](https://docs.astral.sh/uv/), create a caller-owned profile with an explicit guild
+boundary, and search before calling:
+
+```bash
+export DISCORD_TOKEN="Bot YOUR_DISCORD_BOT_TOKEN"
+discord-mcp setup --profile devbot --client generic --write-mode preview
+
+# Return only a small set of matching command contracts to the caller.
+discord-mcp-cli --profile devbot --search message --top 10 --compact
+
+# Inspect one dynamically generated command.
+discord-mcp-cli --profile devbot messages-send --help
+
+# Execute it and keep the full MCP result envelope machine-readable.
+discord-mcp-cli --profile devbot --json messages-send \
+  --channel-id 111122223333444455 \
+  --content "hello"
+```
+
+The adapter pins `mcp2cli`, starts the packaged `discord-mcp` server over stdio, and temporarily
+uses the full tool surface inside that local child process so dynamic discovery can see every tool
+allowed by the profile. The schema is not registered with the AI host. Bot identity locking,
+guild/category allowlists, write preview, destructive confirmation, and all existing middleware
+remain enforced. The token is inherited from the environment and never placed in command-line
+arguments.
+
 ### Registry-safe schema discovery
 
 `discord-mcp catalog` is a credential-free stdio server for MCP directories,
@@ -272,7 +305,8 @@ own `DISCORD_TOKEN` and safety configuration.
 | [@discord-mcp/cli](https://www.npmjs.com/package/@discord-mcp/cli) | You want to run Discord MCP from an AI client or terminal. |
 | [@discord-mcp/core](https://www.npmjs.com/package/@discord-mcp/core) | You are building an integration on the typed Discord MCP tool and server primitives. |
 
-The CLI runs on macOS, Linux, and Windows. Its executable is always `discord-mcp`.
+The CLI runs on macOS, Linux, and Windows. The primary executable is `discord-mcp`; the optional
+mcp2cli shell adapter is `discord-mcp-cli`.
 
 ## Migrate an existing setup
 

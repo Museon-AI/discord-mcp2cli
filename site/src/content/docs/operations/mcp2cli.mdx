@@ -1,0 +1,84 @@
+---
+title: Token-efficient shell CLI
+description: Use mcp2cli to discover and call Discord tools from a shell without registering the full MCP catalog in an AI host.
+sidebar:
+  order: 5
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`discord-mcp-cli` turns the Discord MCP server into dynamic shell commands with
+[`mcp2cli`](https://github.com/knowsuchagency/mcp2cli). Choose this mode when an AI agent already
+has a shell tool and should fetch only the command contracts relevant to its current task.
+
+Unlike a native MCP registration, the AI host does not receive up to 209 Discord tool schemas at
+session initialization. `mcp2cli` discovers those schemas in a local child process, while the
+agent sees only compact search output, one command's help, and the result of the command it runs.
+
+## Prerequisites
+
+Install [uv](https://docs.astral.sh/uv/) so the adapter can run its pinned `mcp2cli` version. Then
+create a profile with a narrow guild boundary and preview writes by default:
+
+```bash
+export DISCORD_TOKEN="Bot YOUR_DISCORD_BOT_TOKEN"
+discord-mcp setup --profile devbot --client generic --write-mode preview
+```
+
+The profile stores no token. Keep `DISCORD_TOKEN` in the environment that launches every
+`discord-mcp-cli` command.
+
+## Discover only what the task needs
+
+Search by tool name or description instead of printing the whole catalog:
+
+```bash
+discord-mcp-cli --profile devbot --search message --top 10 --compact
+discord-mcp-cli --profile devbot --search channel --top 10 --compact
+discord-mcp-cli --profile devbot --search automod --top 10 --compact
+```
+
+For a very small inventory, ask for compact ranked names:
+
+```bash
+discord-mcp-cli --profile devbot --list --top 20 --compact
+```
+
+Inspect one generated command before using it:
+
+```bash
+discord-mcp-cli --profile devbot messages-send --help
+```
+
+## Call a Discord tool
+
+The MCP tool name becomes a kebab-case CLI command and each input field becomes a flag:
+
+```bash
+discord-mcp-cli --profile devbot --json messages-send \
+  --channel-id 111122223333444455 \
+  --content "hello"
+```
+
+`--json` preserves the complete MCP result envelope, including `structuredContent` and
+`isError`, so an agent or script can check the result without parsing terminal decoration.
+
+<Aside type="caution" title="Discovery does not weaken authorization">
+The adapter temporarily selects the full MCP tool surface only inside its local child process.
+The profile's expected bot identity, guild and category allowlists, write policy, destructive
+confirmation requirements, Discord permissions, and middleware remain active. A visible command
+is not evidence that Discord will authorize it.
+</Aside>
+
+## Recommended agent workflow
+
+1. Run `--search` with the smallest useful term.
+2. Run `<command> --help` for the selected command.
+3. Prefer `--json` for the actual call.
+4. Review previews and confirmation material before retrying a mutation.
+5. Do not also register discord-mcp as a native MCP server in the same agent session unless the
+   workflow genuinely needs MCP resources, sampling, or Gateway notifications.
+
+Each invocation starts a fresh stdio server. If repeated startup becomes material, use mcp2cli's
+persistent session flags directly against `discord-mcp serve`; keep the same profile-derived
+authorization environment and stop the session when the workflow ends.
