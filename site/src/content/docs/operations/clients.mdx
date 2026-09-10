@@ -15,6 +15,7 @@ unless your MCP host or deployment model requires something else.
 
 | Combination | Use it when | Host-visible catalog | Gateway | Continue with |
 |---|---|---|---|---|
+| **Shell + mcp2cli** | An agent already has shell access and should discover only the Discord command contracts needed for the current task. | No Discord MCP tools registered in the host; search/help/result text only | Unavailable through the wrapper | [Token-efficient shell CLI](/discord-mcp/operations/mcp2cli/) |
 | **Local stdio + progressive** | A local client can start discord-mcp and use the direct plan/apply/evidence lifecycle for one-request architecture, then search/dispatch other tools. This is the guided setup default. | **7 visible tools when authorized** (4 search/dispatch tools plus 3 architecture tools) | Optional | [Client setup](/discord-mcp/start/client-setup/) |
 | **Local stdio + full** | A compatibility-oriented client must receive its allowed direct tool contracts up front. | up to 209 visible tools; allowlists can reduce this | Optional | [Tool-surface configuration](/discord-mcp/reference/config/access/#mcp_tool_surface) |
 | **Streamable HTTP + full** | A remote caller has native deferred loading or tool search, such as the OpenAI Responses API. | up to 209 direct tools; the caller defers them | Unavailable | [OpenAI remote MCP](/discord-mcp/operations/openai/) |

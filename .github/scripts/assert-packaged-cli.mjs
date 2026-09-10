@@ -256,13 +256,21 @@ try {
   const coreDirectory = join(installRoot, 'node_modules/@discord-mcp/core');
   const cliDirectory = join(installRoot, 'node_modules/@discord-mcp/cli');
   const cliEntry = join(cliDirectory, 'dist/cli.js');
+  const shellCliEntry = join(cliDirectory, 'dist/mcp2cli.js');
   const cliBin = join(
     installRoot,
     'node_modules/.bin',
     usesCommandShim ? 'discord-mcp.cmd' : 'discord-mcp',
   );
+  const shellCliBin = join(
+    installRoot,
+    'node_modules/.bin',
+    usesCommandShim ? 'discord-mcp-cli.cmd' : 'discord-mcp-cli',
+  );
   assert.ok(existsSync(cliEntry), 'packed CLI is missing dist/cli.js');
+  assert.ok(existsSync(shellCliEntry), 'packed CLI is missing dist/mcp2cli.js');
   assert.ok(existsSync(cliBin), 'packed CLI is missing the discord-mcp binary');
+  assert.ok(existsSync(shellCliBin), 'packed CLI is missing the discord-mcp-cli binary');
 
   const sourceCore = packageJson(join(repoRoot, 'packages/mcp-core'));
   const sourceCli = packageJson(join(repoRoot, 'packages/mcp-server'));
@@ -279,6 +287,8 @@ try {
   });
   const cliCommand = usesCommandShim ? process.execPath : cliBin;
   const cliArguments = usesCommandShim ? [cliEntry] : [];
+  const shellCliCommand = usesCommandShim ? process.execPath : shellCliBin;
+  const shellCliArguments = usesCommandShim ? [shellCliEntry] : [];
   const runCli = (args, options = {}) =>
     run(cliCommand, [...cliArguments, ...args], {
       cwd: installRoot,
@@ -287,6 +297,13 @@ try {
     });
   const version = runCli(['--version']).trim();
   assert.equal(version, sourceCli.version);
+
+  const shellHelp = run(shellCliCommand, [...shellCliArguments, '--help'], {
+    cwd: installRoot,
+    env: commonEnvironment,
+  });
+  assert.match(shellHelp, /--profile/);
+  assert.match(shellHelp, /--search/);
 
   const help = runCli(['--help']);
   for (const command of ['serve', 'catalog', 'setup', 'doctor', 'init', 'smoke']) {

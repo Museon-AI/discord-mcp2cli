@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsdown';
 
 export default defineConfig({
-  entry: ['src/cli.ts'],
+  entry: ['src/cli.ts', 'src/mcp2cli.ts'],
   format: 'esm',
   target: 'node20',
   outExtensions: () => ({ js: '.js', dts: '.d.ts' }),
