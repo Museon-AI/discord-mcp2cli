@@ -235,7 +235,7 @@ Run `discord-mcp --help` or see the full [CLI reference](https://cappyeo.github.
 
 ### Token-efficient shell CLI with mcp2cli
 
-The package also ships `discord-mcp-cli`, a thin adapter around
+The package also ships `discord-mcp2cli`, a thin adapter around
 [`mcp2cli`](https://github.com/knowsuchagency/mcp2cli). Use it when an AI agent has shell access
 and should discover Discord operations on demand instead of registering the full MCP catalog in
 the host's tool context.
@@ -248,13 +248,13 @@ export DISCORD_TOKEN="Bot YOUR_DISCORD_BOT_TOKEN"
 discord-mcp setup --profile devbot --client generic --write-mode preview
 
 # Return only a small set of matching command contracts to the caller.
-discord-mcp-cli --profile devbot --search message --top 10 --compact
+discord-mcp2cli --profile devbot --search message --top 10 --compact
 
 # Inspect one dynamically generated command.
-discord-mcp-cli --profile devbot messages-send --help
+discord-mcp2cli --profile devbot messages-send --help
 
 # Execute it and keep the full MCP result envelope machine-readable.
-discord-mcp-cli --profile devbot --json messages-send \
+discord-mcp2cli --profile devbot --json messages-send \
   --channel-id 111122223333444455 \
   --content "hello"
 ```
@@ -306,7 +306,8 @@ own `DISCORD_TOKEN` and safety configuration.
 | [@discord-mcp/core](https://www.npmjs.com/package/@discord-mcp/core) | You are building an integration on the typed Discord MCP tool and server primitives. |
 
 The CLI runs on macOS, Linux, and Windows. The primary executable is `discord-mcp`; the optional
-mcp2cli shell adapter is `discord-mcp-cli`.
+mcp2cli shell adapter is `discord-mcp2cli`. The older `discord-mcp-cli` name
+remains as a compatibility alias.
 
 ## Migrate an existing setup
 

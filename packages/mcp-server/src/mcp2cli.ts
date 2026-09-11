@@ -25,9 +25,9 @@ export interface DiscordCliInvocation {
 }
 
 export const HELP = `Usage:
-  discord-mcp-cli --profile <name> --search <pattern>
-  discord-mcp-cli --profile <name> --list --top <count> --compact
-  discord-mcp-cli --profile <name> <tool-name> [tool-options]
+  discord-mcp2cli --profile <name> --search <pattern>
+  discord-mcp2cli --profile <name> --list --top <count> --compact
+  discord-mcp2cli --profile <name> <tool-name> [tool-options]
 
 The adapter runs mcp2cli against the local discord-mcp stdio server. It keeps
 the complete MCP schema outside the AI host's tool context while preserving
@@ -130,16 +130,16 @@ export async function runDiscordCli(argv: readonly string[]): Promise<number> {
     child.once('error', (error) => {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         process.stderr.write(
-          'discord-mcp-cli requires uvx. Install uv from https://docs.astral.sh/uv/ and retry.\n',
+          'discord-mcp2cli requires uvx. Install uv from https://docs.astral.sh/uv/ and retry.\n',
         );
       } else {
-        process.stderr.write(`discord-mcp-cli failed: ${error.message}\n`);
+        process.stderr.write(`discord-mcp2cli failed: ${error.message}\n`);
       }
       resolveExit(2);
     });
     child.once('exit', (code, signal) => {
       if (signal !== null) {
-        process.stderr.write(`discord-mcp-cli stopped by signal ${signal}\n`);
+        process.stderr.write(`discord-mcp2cli stopped by signal ${signal}\n`);
         resolveExit(1);
         return;
       }
