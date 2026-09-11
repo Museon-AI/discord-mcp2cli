@@ -265,12 +265,21 @@ try {
   const shellCliBin = join(
     installRoot,
     'node_modules/.bin',
+    usesCommandShim ? 'discord-mcp2cli.cmd' : 'discord-mcp2cli',
+  );
+  const legacyShellCliBin = join(
+    installRoot,
+    'node_modules/.bin',
     usesCommandShim ? 'discord-mcp-cli.cmd' : 'discord-mcp-cli',
   );
   assert.ok(existsSync(cliEntry), 'packed CLI is missing dist/cli.js');
   assert.ok(existsSync(shellCliEntry), 'packed CLI is missing dist/mcp2cli.js');
   assert.ok(existsSync(cliBin), 'packed CLI is missing the discord-mcp binary');
-  assert.ok(existsSync(shellCliBin), 'packed CLI is missing the discord-mcp-cli binary');
+  assert.ok(existsSync(shellCliBin), 'packed CLI is missing the discord-mcp2cli binary');
+  assert.ok(
+    existsSync(legacyShellCliBin),
+    'packed CLI is missing the legacy discord-mcp-cli binary',
+  );
 
   const sourceCore = packageJson(join(repoRoot, 'packages/mcp-core'));
   const sourceCli = packageJson(join(repoRoot, 'packages/mcp-server'));

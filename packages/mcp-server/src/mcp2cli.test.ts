@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildDiscordCliInvocation, parseDiscordCliArguments, quoteForShlex } from './mcp2cli.js';
 
-describe('discord-mcp-cli argument adapter', () => {
+describe('discord-mcp2cli argument adapter', () => {
   it('keeps discovery arguments out of the wrapper profile parser', () => {
     expect(parseDiscordCliArguments(['--profile', 'devbot', '--search', 'message'])).toEqual({
       profile: 'devbot',

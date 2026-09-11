@@ -7,7 +7,7 @@ sidebar:
 
 import { Aside } from '@astrojs/starlight/components';
 
-`discord-mcp-cli` turns the Discord MCP server into dynamic shell commands with
+`discord-mcp2cli` turns the Discord MCP server into dynamic shell commands with
 [`mcp2cli`](https://github.com/knowsuchagency/mcp2cli). Choose this mode when an AI agent already
 has a shell tool and should fetch only the command contracts relevant to its current task.
 
@@ -26,28 +26,28 @@ discord-mcp setup --profile devbot --client generic --write-mode preview
 ```
 
 The profile stores no token. Keep `DISCORD_TOKEN` in the environment that launches every
-`discord-mcp-cli` command.
+`discord-mcp2cli` command.
 
 ## Discover only what the task needs
 
 Search by tool name or description instead of printing the whole catalog:
 
 ```bash
-discord-mcp-cli --profile devbot --search message --top 10 --compact
-discord-mcp-cli --profile devbot --search channel --top 10 --compact
-discord-mcp-cli --profile devbot --search automod --top 10 --compact
+discord-mcp2cli --profile devbot --search message --top 10 --compact
+discord-mcp2cli --profile devbot --search channel --top 10 --compact
+discord-mcp2cli --profile devbot --search automod --top 10 --compact
 ```
 
 For a very small inventory, ask for compact ranked names:
 
 ```bash
-discord-mcp-cli --profile devbot --list --top 20 --compact
+discord-mcp2cli --profile devbot --list --top 20 --compact
 ```
 
 Inspect one generated command before using it:
 
 ```bash
-discord-mcp-cli --profile devbot messages-send --help
+discord-mcp2cli --profile devbot messages-send --help
 ```
 
 ## Call a Discord tool
@@ -55,7 +55,7 @@ discord-mcp-cli --profile devbot messages-send --help
 The MCP tool name becomes a kebab-case CLI command and each input field becomes a flag:
 
 ```bash
-discord-mcp-cli --profile devbot --json messages-send \
+discord-mcp2cli --profile devbot --json messages-send \
   --channel-id 111122223333444455 \
   --content "hello"
 ```
