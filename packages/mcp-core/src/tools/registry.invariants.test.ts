@@ -1,5 +1,5 @@
 /**
- * Registry-wide invariants over all 209 tools.
+ * Registry-wide invariants over all 210 tools.
  *
  * These are the checks that per-tool test files structurally cannot make: a
  * tool that forgets its confirm gate, mislabels itself as read-only, or
@@ -75,7 +75,7 @@ beforeAll(async () => {
 
 describe('tool registry invariants', () => {
   it('discovers the full advertised tool surface', () => {
-    expect(tools.length).toBe(209);
+    expect(tools.length).toBe(210);
     expect(new Set(tools.map((t) => t.name)).size).toBe(tools.length);
     expect(new Set(tools.map((t) => t.category)).size).toBe(31);
   });
@@ -163,9 +163,11 @@ describe('tool registry invariants', () => {
     // Two categories ship a prefix that differs from the directory name. Both
     // predate the freeze and renaming a tool is a breaking change, so they are
     // allowlisted rather than "fixed" - the point of the check is to catch a
-    // NEW tool landing under the wrong prefix.
+    // NEW tool landing under the wrong prefix. `attachments_download` is a
+    // deliberate messages-category exception (fork contract name).
     const PREFIX_EXCEPTIONS: Record<string, readonly string[]> = {
       meta: ['mcp_', 'discord_'],
+      messages: ['messages_', 'attachments_'],
       monetization: ['entitlements_', 'skus_', 'subscriptions_'],
     };
     for (const t of tools) {

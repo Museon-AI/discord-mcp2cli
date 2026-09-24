@@ -13,13 +13,13 @@
 
 <p align="center">
   <strong>Connect any MCP-compatible AI to Discord. Do real community work safely. Verify complete guild builds.</strong><br />
-  Caller-owned bot · local by default · 209 typed tools · resumable guild builds with Activity Evidence.
+  Caller-owned bot · local by default · 210 typed tools · resumable guild builds with Activity Evidence.
 </p>
 
 <p align="center">
   <a href="https://cappyeo.github.io/discord-mcp/start/activity-evidence/"><strong>Get a verified result</strong></a>
   · <a href="https://cappyeo.github.io/discord-mcp/start/"><strong>Get started</strong></a>
-  · <a href="https://cappyeo.github.io/discord-mcp/tools/"><strong>Browse 209 tools</strong></a>
+  · <a href="https://cappyeo.github.io/discord-mcp/tools/"><strong>Browse 210 tools</strong></a>
   · <a href="https://cappyeo.github.io/discord-mcp/showcase/live-gaming-server/"><strong>Watch live demo</strong></a>
   · <a href="https://github.com/cappyeo/discord-mcp/discussions"><strong>Join the community</strong></a>
   · <a href="https://www.npmjs.com/package/@discord-mcp/cli"><strong>View on npm</strong></a>
@@ -220,7 +220,7 @@ Read the [architecture](https://cappyeo.github.io/discord-mcp/architecture/), [o
 | Command | Purpose |
 | --- | --- |
 | `discord-mcp serve` | Start the local stdio MCP server (default), or `serve --http` for a bearer-protected Streamable HTTP endpoint. |
-| `discord-mcp catalog` | Expose all 209 real tool schemas without a token; every tool call fails closed with `CATALOG_ONLY`. |
+| `discord-mcp catalog` | Expose all 210 real tool schemas without a token; every tool call fails closed with `CATALOG_ONLY`. |
 | `discord-mcp catalog --check [--json]` | Check the real local MCP catalog contract without a token, Discord request, or Discord write. This is catalog validation only—not Activity Evidence. |
 | `discord-mcp setup` | Verify one caller-owned bot, save a non-secret profile, and generate its client configuration. |
 | `discord-mcp activity [--report]` | Show the local, privacy-safe evidence journal; `--report` prints the optional GitHub outcome-form URL. |
@@ -269,7 +269,7 @@ arguments.
 ### Registry-safe schema discovery
 
 `discord-mcp catalog` is a credential-free stdio server for MCP directories,
-security review, and contract inspection. It advertises the same 209 schemas as
+security review, and contract inspection. It advertises the same 210 schemas as
 the full server, never reads a bot token, never contacts Discord, and returns
 `CATALOG_ONLY` for every `tools/call`. It is not an operational Discord server;
 use `discord-mcp serve` with your caller-owned bot when an AI agent should act.
@@ -288,7 +288,7 @@ only proves catalog discovery; continue to [set up a caller-owned bot](https://c
 to reach the first verified Discord outcome.
 
 With `--json`, the result uses schema `discord-mcp.catalog-check.v1` and reports the
-expected 209 tools, 6 static resources, `execution_guard: "CATALOG_ONLY"`,
+expected 210 tools, 6 static resources, `execution_guard: "CATALOG_ONLY"`,
 `credentials_required: false`, `discord_execution: "disabled"`, and
 `activity_evidence_created: false`. It proves the installed catalog contract only;
 it does not prove that an AI host or a live Discord connection is configured.
@@ -339,7 +339,7 @@ writing to Discord.
 
 ## Project status
 
-`discord-mcp` is pre-1.0. This source tree targets **v0.26.1** with 209 tools. Its core exports, CLI surface, environment schema, and tool registry are covered by contract tests; publication is gated on trusted exact-tag release checks, protected-main CI, and independently verified real-server evidence appropriate to the exact tag commit. See the [GitHub releases](https://github.com/cappyeo/discord-mcp/releases), [changelog](https://cappyeo.github.io/discord-mcp/reference/changelog/), and [v1.0 readiness checklist](https://cappyeo.github.io/discord-mcp/reference/v1-readiness/) before depending on an unstable surface.
+`discord-mcp` is pre-1.0. This source tree targets **v0.26.1** with 210 tools. Its core exports, CLI surface, environment schema, and tool registry are covered by contract tests; publication is gated on trusted exact-tag release checks, protected-main CI, and independently verified real-server evidence appropriate to the exact tag commit. See the [GitHub releases](https://github.com/cappyeo/discord-mcp/releases), [changelog](https://cappyeo.github.io/discord-mcp/reference/changelog/), and [v1.0 readiness checklist](https://cappyeo.github.io/discord-mcp/reference/v1-readiness/) before depending on an unstable surface.
 
 Help validate v1.0: if you have not authored discord-mcp or its documentation,
 follow the [external documentation review](https://cappyeo.github.io/discord-mcp/reference/external-documentation-review/)

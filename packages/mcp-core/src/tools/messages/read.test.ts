@@ -3,6 +3,7 @@ import { REST } from '@discordjs/rest';
 import { container } from '@sapphire/pieces';
 import { HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import messagesRead from './read.js';
 import '../../container.js';
 
@@ -75,5 +76,205 @@ describe('messages_read', () => {
         { signal: new AbortController().signal },
       ),
     ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+  });
+
+  describe('rich message fields', () => {
+    const CHANNEL = '112233445566778899';
+    const richMessages = [
+      {
+        id: '999000999000000003',
+        channel_id: CHANNEL,
+        content: 'look at this',
+        author: { id: '999000999000000013', username: 'hookbot', bot: true },
+        timestamp: '2026-04-28T12:03:00.000Z',
+        edited_timestamp: null,
+        attachments: [
+          {
+            id: '999000999000000301',
+            filename: 'a.mp4',
+            content_type: 'video/mp4',
+            size: 1234,
+            url: 'https://cdn.discordapp.com/attachments/1/2/a.mp4?ex=1',
+            proxy_url: 'https://media.discordapp.net/attachments/1/2/a.mp4?ex=1',
+            width: 1080,
+            height: 1920,
+          },
+          {
+            id: '999000999000000302',
+            filename: 'voice.ogg',
+            size: 99,
+            url: 'https://cdn.discordapp.com/attachments/1/2/voice.ogg',
+            proxy_url: 'https://media.discordapp.net/attachments/1/2/voice.ogg',
+            duration_secs: 3.5,
+          },
+        ],
+        embeds: [{ type: 'link', title: 'Title', url: 'https://example.com' }],
+        reactions: [
+          { emoji: { id: null, name: '✅' }, count: 2, me: true },
+          { emoji: { id: '999000999000000401', name: 'party' }, count: 1, me: false },
+        ],
+        message_reference: { message_id: '999000999000000001', channel_id: CHANNEL },
+        thread: { id: '999000999000000501' },
+        components: [
+          {
+            type: 17,
+            components: [
+              { type: 10, content: 'Header text' },
+              {
+                type: 9,
+                components: [{ type: 10, content: 'Section body' }],
+                accessory: { type: 2, style: 1, label: 'Approve', custom_id: 'ok' },
+              },
+              {
+                type: 1,
+                components: [
+                  {
+                    type: 3,
+                    custom_id: 'pick',
+                    options: [{ label: 'Option A', value: 'a' }],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      {
+        id: '999000999000000002',
+        channel_id: CHANNEL,
+        content: 'plain',
+        author: { id: '999000999000000012', username: 'user2' },
+        timestamp: '2026-04-28T12:02:00.000Z',
+        edited_timestamp: null,
+        reactions: [{ emoji: { id: null, name: '❤️' }, count: 1, me: false }],
+      },
+    ];
+
+    function tool() {
+      const T = messagesRead;
+      return new T(
+        { name: 'messages_read', path: 'inline', root: 'inline', store: null as never },
+        { name: 'messages_read', enabled: true },
+      );
+    }
+
+    it('exposes attachments, embeds, reactions, reply/thread refs and component text', async () => {
+      container.rest = new REST({ version: '10', makeRequest: fetch }).setToken('fake-token');
+      server.use(
+        http.get('https://discord.com/api/v10/channels/:channelId/messages', () =>
+          HttpResponse.json(richMessages),
+        ),
+      );
+      const r = (await tool().run(
+        { channel_id: CHANNEL, limit: 2 },
+        { signal: new AbortController().signal },
+      )) as {
+        content: Array<{ text: string }>;
+        structuredContent: {
+          reactors_calls: number;
+          messages: Array<Record<string, unknown>>;
+        };
+      };
+      const [rich, plain] = r.structuredContent.messages;
+      expect(r.structuredContent.reactors_calls).toBe(0);
+      expect(rich).toMatchObject({
+        id: '999000999000000003',
+        content: 'look at this',
+        author_bot: true,
+        attachments: [
+          {
+            id: '999000999000000301',
+            filename: 'a.mp4',
+            content_type: 'video/mp4',
+            size: 1234,
+            width: 1080,
+            height: 1920,
+            duration_secs: null,
+          },
+          {
+            id: '999000999000000302',
+            content_type: null,
+            width: null,
+            height: null,
+            duration_secs: 3.5,
+          },
+        ],
+        embeds: [{ type: 'link', title: 'Title', description: null, url: 'https://example.com' }],
+        reactions: [
+          { emoji: '✅', emoji_id: null, count: 2, me: true },
+          { emoji: 'party', emoji_id: '999000999000000401', count: 1, me: false },
+        ],
+        reply_to: '999000999000000001',
+        thread_id: '999000999000000501',
+        components_text: 'Header text\nSection body\nApprove\nOption A',
+      });
+      expect(plain).toMatchObject({
+        attachments: [],
+        embeds: [],
+        reply_to: null,
+        thread_id: null,
+        components_text: '',
+        author_bot: false,
+      });
+      const text = r.content[0]!.text;
+      expect(text).toContain(
+        'look at this [attachments: a.mp4, voice.ogg] [reactions: ✅×2 party×1] [reply_to: 999000999000000001]</msg>',
+      );
+      expect(text).toContain('>plain [reactions: ❤️×1]</msg>');
+    });
+
+    it('fetches reactors only for messages carrying a requested emoji', async () => {
+      container.rest = new REST({ version: '10', makeRequest: fetch }).setToken('fake-token');
+      const reactorCalls: string[] = [];
+      server.use(
+        http.get('https://discord.com/api/v10/channels/:channelId/messages', () =>
+          HttpResponse.json(richMessages),
+        ),
+        http.get(
+          'https://discord.com/api/v10/channels/:channelId/messages/:messageId/reactions/:emoji',
+          ({ params, request }) => {
+            expect(new URL(request.url).searchParams.get('limit')).toBe('100');
+            reactorCalls.push(`${params.messageId}/${decodeURIComponent(String(params.emoji))}`);
+            return HttpResponse.json([
+              { id: '999000999000000601', username: 'alice', global_name: 'Alice' },
+              { id: '999000999000000602', username: 'robo', bot: true },
+            ]);
+          },
+        ),
+      );
+      const r = (await tool().run(
+        {
+          channel_id: CHANNEL,
+          limit: 2,
+          reactors_for: ['✅', 'party:999000999000000401', '🔥'],
+        },
+        { signal: new AbortController().signal },
+      )) as {
+        structuredContent: {
+          reactors_calls: number;
+          messages: Array<{ reactions: Array<{ emoji: string; users?: unknown[] }> }>;
+        };
+      };
+      expect(reactorCalls.sort()).toEqual([
+        '999000999000000003/party:999000999000000401',
+        '999000999000000003/✅',
+      ]);
+      expect(r.structuredContent.reactors_calls).toBe(2);
+      const [rich, plain] = r.structuredContent.messages;
+      expect(rich!.reactions[0]!.users).toEqual([
+        { user_id: '999000999000000601', username: 'Alice', bot: false },
+        { user_id: '999000999000000602', username: 'robo', bot: true },
+      ]);
+      expect(rich!.reactions[1]!.users).toHaveLength(2);
+      expect(plain!.reactions[0]!.users).toBeUndefined();
+    });
+
+    it('caps reactors_for at five emojis', () => {
+      const schema = z.object(tool().inputSchema);
+      expect(
+        schema.safeParse({ channel_id: CHANNEL, reactors_for: ['1', '2', '3', '4', '5', '6'] })
+          .success,
+      ).toBe(false);
+    });
   });
 });
