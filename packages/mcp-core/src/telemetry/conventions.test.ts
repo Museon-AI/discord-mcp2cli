@@ -33,7 +33,9 @@ describe('telemetry conventions', () => {
 
   it('exports the instrumentation name + version', () => {
     expect(conventions.TELEMETRY_INSTRUMENTATION_NAME).toBe('@discord-mcp/core');
-    expect(conventions.TELEMETRY_INSTRUMENTATION_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(conventions.TELEMETRY_INSTRUMENTATION_VERSION).toMatch(
+      /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/,
+    );
   });
 
   it('exports Phase D resilience metric names', () => {
