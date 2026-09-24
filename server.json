@@ -9,7 +9,7 @@
     "id": "1223078565",
     "subfolder": "packages/mcp-server"
   },
-  "version": "0.26.1",
+  "version": "0.26.1-museon.1",
   "websiteUrl": "https://cappyeo.github.io/discord-mcp/",
   "icons": [
     {
@@ -29,7 +29,7 @@
     {
       "registryType": "npm",
       "identifier": "@discord-mcp/cli",
-      "version": "0.26.1",
+      "version": "0.26.1-museon.1",
       "transport": {
         "type": "stdio"
       },

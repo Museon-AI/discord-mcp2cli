@@ -126,9 +126,16 @@ describe('release CI gate', () => {
     );
     expect(workflow.match(/ref: \$\{\{ inputs\.tag \}\}/g)).toHaveLength(1);
     expect(workflow.match(/ref: \$\{\{ needs\.preflight\.outputs\.release_sha \}\}/g)).toHaveLength(
-      2,
+      3,
     );
     expect(workflow).toContain('needs: [preflight, publish]');
+    // npm publish is skipped (not failed) without credentials; tarballs still
+    // ship on the GitHub Release after the same trusted preflight.
+    expect(workflow).toContain(
+      "if: ${{ !inputs.registry_only && needs.preflight.outputs.npm_enabled == 'true' }}",
+    );
+    expect(workflow).toMatch(/github-release:\n {4}needs: preflight\n/);
+    expect(workflow).toContain('gh release create "$RELEASE_TAG" release-assets/*.tgz --verify-tag');
     expect(workflow).not.toContain('inputs.registry_only && github.sha');
   });
 });
