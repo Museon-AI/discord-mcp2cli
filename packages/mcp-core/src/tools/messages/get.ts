@@ -32,7 +32,7 @@ export default defineTool({
     '',
     '**Example**: `{channel_id:"112233445566778899", message_id:"999000999000999000"}`',
     '',
-    '**Returns**: `{message_id, channel_id, author_id, author_name, content, timestamp, edited, pinned, attachments, embeds, reactions, reply_to, thread_id, components_text, author_bot}`. Attachment URLs are signed and expire; use `attachments_download` to keep the files. For who reacted, use `reactions_list`. Structured message fields remain raw Discord data; the human-readable MCP `content` response fences the message text.',
+    '**Returns**: `{message_id, channel_id, author_id, author_name, content, timestamp, edited, pinned, attachments, embeds, reactions, reply_to, thread_id, components_text, author_bot}`. Attachment URLs are signed and expire; use `messages_download_attachments` to keep the files. For who reacted, use `reactions_list`. Structured message fields remain raw Discord data; the human-readable MCP `content` response fences the message text.',
   ].join('\n'),
   inputSchema: {
     channel_id: ChannelId.describe('Channel containing the message'),

@@ -174,11 +174,11 @@ import MembersModifyCurrent from './tools/members/modify_current.js';
 import MembersRemoveRole from './tools/members/remove_role.js';
 import MembersSearch from './tools/members/search.js';
 import MembersUnban from './tools/members/unban.js';
-import MessagesAttachmentsDownload from './tools/messages/attachments_download.js';
 import MessagesBulkDelete from './tools/messages/bulk_delete.js';
 import MessagesCreateThread from './tools/messages/create_thread.js';
 import MessagesCrosspost from './tools/messages/crosspost.js';
 import MessagesDelete from './tools/messages/delete.js';
+import MessagesDownloadAttachments from './tools/messages/download_attachments.js';
 import MessagesEdit from './tools/messages/edit.js';
 import MessagesGet from './tools/messages/get.js';
 import MessagesListPins from './tools/messages/list_pins.js';
@@ -807,8 +807,8 @@ async function createSharedToolStore(): Promise<ToolStore> {
     piece: MessagesSearchRecent as unknown as ConcreteTool,
   });
   await toolStore.loadPiece({
-    name: 'attachments_download',
-    piece: MessagesAttachmentsDownload as unknown as ConcreteTool,
+    name: 'messages_download_attachments',
+    piece: MessagesDownloadAttachments as unknown as ConcreteTool,
   });
   await toolStore.loadPiece({
     name: 'reactions_create',

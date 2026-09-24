@@ -163,11 +163,9 @@ describe('tool registry invariants', () => {
     // Two categories ship a prefix that differs from the directory name. Both
     // predate the freeze and renaming a tool is a breaking change, so they are
     // allowlisted rather than "fixed" - the point of the check is to catch a
-    // NEW tool landing under the wrong prefix. `attachments_download` is a
-    // deliberate messages-category exception (fork contract name).
+    // NEW tool landing under the wrong prefix.
     const PREFIX_EXCEPTIONS: Record<string, readonly string[]> = {
       meta: ['mcp_', 'discord_'],
-      messages: ['messages_', 'attachments_'],
       monetization: ['entitlements_', 'skus_', 'subscriptions_'],
     };
     for (const t of tools) {

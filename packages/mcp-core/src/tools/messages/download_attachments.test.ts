@@ -6,7 +6,7 @@ import { REST } from '@discordjs/rest';
 import { container } from '@sapphire/pieces';
 import { HttpResponse, http } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import attachmentsDownload from './attachments_download.js';
+import messagesDownloadAttachments from './download_attachments.js';
 import '../../container.js';
 
 const DISCORD_API = 'https://discord.com/api/v10';
@@ -25,10 +25,10 @@ function attachment(id: string, filename: string, url: string, size: number) {
 }
 
 function tool() {
-  const T = attachmentsDownload;
+  const T = messagesDownloadAttachments;
   return new T(
-    { name: 'attachments_download', path: 'inline', root: 'inline', store: null as never },
-    { name: 'attachments_download', enabled: true },
+    { name: 'messages_download_attachments', path: 'inline', root: 'inline', store: null as never },
+    { name: 'messages_download_attachments', enabled: true },
   );
 }
 
@@ -41,7 +41,7 @@ type Result = {
   };
 };
 
-describe('attachments_download', () => {
+describe('messages_download_attachments', () => {
   let dir: string;
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'attachments-download-'));

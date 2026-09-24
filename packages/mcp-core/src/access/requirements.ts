@@ -512,7 +512,7 @@ const TOOL_REQUIREMENTS: Readonly<Record<string, DiscordAccessRequirement>> = {
   messages_get: messageRead,
   messages_read: messageRead,
   messages_search_recent: messageRead,
-  attachments_download: messageRead,
+  messages_download_attachments: messageRead,
   messages_list_pins: messageRead,
   messages_edit: messageModerate,
   messages_crosspost: messageModerate,

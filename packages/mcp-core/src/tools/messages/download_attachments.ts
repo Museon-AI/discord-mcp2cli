@@ -55,7 +55,7 @@ async function readBounded(response: Response, maxBytes: number): Promise<Buffer
 }
 
 export default defineTool({
-  name: 'attachments_download',
+  name: 'messages_download_attachments',
   category: 'messages',
   description: [
     '**Purpose**: Download a message’s attachments from the Discord CDN to a local directory.',
