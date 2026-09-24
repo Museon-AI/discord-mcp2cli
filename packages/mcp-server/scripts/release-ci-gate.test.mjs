@@ -132,10 +132,12 @@ describe('release CI gate', () => {
     // npm publish is skipped (not failed) without credentials; tarballs still
     // ship on the GitHub Release after the same trusted preflight.
     expect(workflow).toContain(
-      "if: ${{ !inputs.registry_only && needs.preflight.outputs.npm_enabled == 'true' }}",
+      'if: $' + "{{ !inputs.registry_only && needs.preflight.outputs.npm_enabled == 'true' }}",
     );
     expect(workflow).toMatch(/github-release:\n {4}needs: preflight\n/);
-    expect(workflow).toContain('gh release create "$RELEASE_TAG" release-assets/*.tgz --verify-tag');
+    expect(workflow).toContain(
+      'gh release create "$RELEASE_TAG" release-assets/*.tgz --verify-tag',
+    );
     expect(workflow).not.toContain('inputs.registry_only && github.sha');
   });
 });
