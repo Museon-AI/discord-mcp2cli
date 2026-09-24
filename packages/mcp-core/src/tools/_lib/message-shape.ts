@@ -1,7 +1,5 @@
-import { container } from '@sapphire/pieces';
-import { Routes } from 'discord-api-types/v10';
 import { z } from 'zod';
-import { ChannelId, MessageId, UserId } from './snowflake.js';
+import { ChannelId, MessageId } from './snowflake.js';
 
 /**
  * Shared projection of the Discord message fields that the list/get endpoints
@@ -49,18 +47,11 @@ export interface RawRichMessage {
   components?: unknown[];
 }
 
-export interface ReactorUser {
-  user_id: string;
-  username: string;
-  bot: boolean;
-}
-
 export interface MessageReaction {
   emoji: string;
   emoji_id: string | null;
   count: number;
   me: boolean;
-  users?: ReactorUser[];
 }
 
 export interface RichMessageFields {
@@ -117,9 +108,6 @@ export const RICH_MESSAGE_FIELDS = {
       emoji_id: z.string().nullable(),
       count: z.number().int(),
       me: z.boolean(),
-      users: z
-        .array(z.object({ user_id: UserId, username: z.string(), bot: z.boolean() }))
-        .optional(),
     }),
   ),
   reply_to: MessageId.nullable(),
@@ -127,15 +115,6 @@ export const RICH_MESSAGE_FIELDS = {
   components_text: z.string(),
   author_bot: z.boolean(),
 };
-
-/** Input schema for the opt-in reactor expansion on list-style read tools. */
-export const ReactorsForInput = z
-  .array(z.string().min(1).max(128))
-  .max(5)
-  .optional()
-  .describe(
-    'Optional: up to 5 emojis (unicode or `name:id`). For each returned message carrying one of these reactions, fetch up to 100 reacting users into `reactions[].users` (one extra Discord call per matching message+emoji; see `reactors_calls`).',
-  );
 
 const TEXT_KEYS = ['content', 'label'] as const;
 const CHILD_KEYS = ['components', 'accessory', 'options'] as const;
@@ -159,10 +138,6 @@ export function flattenComponentsText(components: readonly unknown[] | undefined
   const out: string[] = [];
   collectComponentText(components ?? [], out);
   return out.join('\n');
-}
-
-export function reactionKey(r: Pick<MessageReaction, 'emoji' | 'emoji_id'>): string {
-  return r.emoji_id === null ? r.emoji : `${r.emoji}:${r.emoji_id}`;
 }
 
 export function richFields(m: RawRichMessage): RichMessageFields {
@@ -208,57 +183,4 @@ export function richTextSuffix(f: RichMessageFields): string {
   }
   if (f.reply_to !== null) suffix += ` [reply_to: ${f.reply_to}]`;
   return suffix;
-}
-
-interface RawReactorUser {
-  id: string;
-  username: string;
-  global_name?: string | null;
-  bot?: boolean;
-}
-
-const REACTOR_CONCURRENCY = 4;
-
-/**
- * Fill `reactions[].users` for reactions matching `emojis`, one
- * `GET .../reactions/{emoji}?limit=100` per matching (message, emoji) pair,
- * at most 4 in flight, through `container.rest` so its rate limiter applies.
- * Messages without a matching reaction cost nothing. Returns the call count.
- */
-export async function expandReactors(
-  channelId: string,
-  messages: ReadonlyArray<{ id: string; reactions: MessageReaction[] }>,
-  emojis: readonly string[] | undefined,
-): Promise<number> {
-  if (emojis === undefined || emojis.length === 0) return 0;
-  const wanted = new Set(emojis);
-  const jobs: Array<{ messageId: string; reaction: MessageReaction }> = [];
-  for (const m of messages) {
-    for (const reaction of m.reactions) {
-      if (wanted.has(reactionKey(reaction))) jobs.push({ messageId: m.id, reaction });
-    }
-  }
-  let next = 0;
-  const worker = async (): Promise<void> => {
-    while (next < jobs.length) {
-      const job = jobs[next++]!;
-      const raw = (await container.rest.get(
-        Routes.channelMessageReaction(
-          channelId,
-          job.messageId,
-          encodeURIComponent(reactionKey(job.reaction)),
-        ),
-        { query: new URLSearchParams({ limit: '100' }) },
-      )) as RawReactorUser[];
-      job.reaction.users = raw.map((u) => ({
-        user_id: u.id,
-        username: u.global_name ?? u.username,
-        bot: u.bot ?? false,
-      }));
-    }
-  };
-  await Promise.all(
-    Array.from({ length: Math.min(REACTOR_CONCURRENCY, jobs.length) }, () => worker()),
-  );
-  return jobs.length;
 }

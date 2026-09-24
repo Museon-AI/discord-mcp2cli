@@ -15,9 +15,7 @@ commit history and downloadable artifacts, see
   previous `discord-mcp-cli` executable remains as a compatibility alias.
 - `messages_read` and `messages_get` now also return `attachments`, `embeds`,
   `reactions`, `reply_to`, `thread_id`, `components_text`, and `author_bot`
-  from the same Discord response (no extra calls). `messages_read` accepts an
-  optional `reactors_for` (up to 5 emojis) that fetches reacting users for
-  matching messages only and reports the cost as `reactors_calls`.
+  from the same Discord response (no extra calls).
 - Added `messages_download_attachments` (messages category) to save a message's
   attachments from the Discord CDN to a local directory before the signed URLs
   expire.

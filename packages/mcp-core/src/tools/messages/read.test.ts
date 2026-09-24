@@ -3,7 +3,6 @@ import { REST } from '@discordjs/rest';
 import { container } from '@sapphire/pieces';
 import { HttpResponse, http } from 'msw';
 import { describe, expect, it } from 'vitest';
-import { z } from 'zod';
 import messagesRead from './read.js';
 import '../../container.js';
 
@@ -171,12 +170,10 @@ describe('messages_read', () => {
       )) as {
         content: Array<{ text: string }>;
         structuredContent: {
-          reactors_calls: number;
           messages: Array<Record<string, unknown>>;
         };
       };
       const [rich, plain] = r.structuredContent.messages;
-      expect(r.structuredContent.reactors_calls).toBe(0);
       expect(rich).toMatchObject({
         id: '999000999000000003',
         content: 'look at this',
@@ -221,60 +218,6 @@ describe('messages_read', () => {
         'look at this [attachments: a.mp4, voice.ogg] [reactions: ✅×2 party×1] [reply_to: 999000999000000001]</msg>',
       );
       expect(text).toContain('>plain [reactions: ❤️×1]</msg>');
-    });
-
-    it('fetches reactors only for messages carrying a requested emoji', async () => {
-      container.rest = new REST({ version: '10', makeRequest: fetch }).setToken('fake-token');
-      const reactorCalls: string[] = [];
-      server.use(
-        http.get('https://discord.com/api/v10/channels/:channelId/messages', () =>
-          HttpResponse.json(richMessages),
-        ),
-        http.get(
-          'https://discord.com/api/v10/channels/:channelId/messages/:messageId/reactions/:emoji',
-          ({ params, request }) => {
-            expect(new URL(request.url).searchParams.get('limit')).toBe('100');
-            reactorCalls.push(`${params.messageId}/${decodeURIComponent(String(params.emoji))}`);
-            return HttpResponse.json([
-              { id: '999000999000000601', username: 'alice', global_name: 'Alice' },
-              { id: '999000999000000602', username: 'robo', bot: true },
-            ]);
-          },
-        ),
-      );
-      const r = (await tool().run(
-        {
-          channel_id: CHANNEL,
-          limit: 2,
-          reactors_for: ['✅', 'party:999000999000000401', '🔥'],
-        },
-        { signal: new AbortController().signal },
-      )) as {
-        structuredContent: {
-          reactors_calls: number;
-          messages: Array<{ reactions: Array<{ emoji: string; users?: unknown[] }> }>;
-        };
-      };
-      expect(reactorCalls.sort()).toEqual([
-        '999000999000000003/party:999000999000000401',
-        '999000999000000003/✅',
-      ]);
-      expect(r.structuredContent.reactors_calls).toBe(2);
-      const [rich, plain] = r.structuredContent.messages;
-      expect(rich!.reactions[0]!.users).toEqual([
-        { user_id: '999000999000000601', username: 'Alice', bot: false },
-        { user_id: '999000999000000602', username: 'robo', bot: true },
-      ]);
-      expect(rich!.reactions[1]!.users).toHaveLength(2);
-      expect(plain!.reactions[0]!.users).toBeUndefined();
-    });
-
-    it('caps reactors_for at five emojis', () => {
-      const schema = z.object(tool().inputSchema);
-      expect(
-        schema.safeParse({ channel_id: CHANNEL, reactors_for: ['1', '2', '3', '4', '5', '6'] })
-          .success,
-      ).toBe(false);
     });
   });
 });
