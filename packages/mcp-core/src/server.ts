@@ -178,6 +178,7 @@ import MessagesBulkDelete from './tools/messages/bulk_delete.js';
 import MessagesCreateThread from './tools/messages/create_thread.js';
 import MessagesCrosspost from './tools/messages/crosspost.js';
 import MessagesDelete from './tools/messages/delete.js';
+import MessagesDownloadAttachments from './tools/messages/download_attachments.js';
 import MessagesEdit from './tools/messages/edit.js';
 import MessagesGet from './tools/messages/get.js';
 import MessagesListPins from './tools/messages/list_pins.js';
@@ -487,7 +488,7 @@ function getToolCategories(toolStore: ToolStore): ReadonlyMap<string, string> {
   return categories;
 }
 
-/** Compile one tool contract on first use instead of all 209 at HTTP startup. */
+/** Compile one tool contract on first use instead of all 210 at HTTP startup. */
 function compileToolContracts(tool: Tool): ToolContractVariants {
   const cached = compiledToolContracts.get(tool);
   if (cached !== undefined) return cached;
@@ -804,6 +805,10 @@ async function createSharedToolStore(): Promise<ToolStore> {
   await toolStore.loadPiece({
     name: 'messages_search_recent',
     piece: MessagesSearchRecent as unknown as ConcreteTool,
+  });
+  await toolStore.loadPiece({
+    name: 'messages_download_attachments',
+    piece: MessagesDownloadAttachments as unknown as ConcreteTool,
   });
   await toolStore.loadPiece({
     name: 'reactions_create',
@@ -1775,7 +1780,7 @@ export async function buildServer(deps: BuildServerDeps): Promise<BuildServerRes
           'MCP_CATEGORIES; every dispatched call still passes all normal policy gates.',
         ]
       : [
-          'Discord MCP server: 209 tools for Discord operations, Guild Templates, and explicit external inspiration discovery (messages, channels,',
+          'Discord MCP server: 210 tools for Discord operations, Guild Templates, and explicit external inspiration discovery (messages, channels,',
           'threads, members, roles, guild, webhooks, invites, events, commands, reactions,',
           'emojis, stickers, automod, polls, stages, soundboard, voice, onboarding,',
           'monetization, components-v2, intelligence) plus mcp_pipeline for chaining calls and discord_intent_plan for bounded read-only planning.',

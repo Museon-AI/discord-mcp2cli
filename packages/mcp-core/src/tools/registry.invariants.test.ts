@@ -1,5 +1,5 @@
 /**
- * Registry-wide invariants over all 209 tools.
+ * Registry-wide invariants over all 210 tools.
  *
  * These are the checks that per-tool test files structurally cannot make: a
  * tool that forgets its confirm gate, mislabels itself as read-only, or
@@ -75,7 +75,7 @@ beforeAll(async () => {
 
 describe('tool registry invariants', () => {
   it('discovers the full advertised tool surface', () => {
-    expect(tools.length).toBe(209);
+    expect(tools.length).toBe(210);
     expect(new Set(tools.map((t) => t.name)).size).toBe(tools.length);
     expect(new Set(tools.map((t) => t.category)).size).toBe(31);
   });
