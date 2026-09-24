@@ -32,6 +32,7 @@ jobs:
       contents: read
     outputs:
       release_sha: ${{ steps.release-sha.outputs.sha }}
+      npm_enabled: ${{ steps.npm-token.outputs.enabled }}
     steps:
       - name: Require the protected main workflow revision
         env:
@@ -68,6 +69,15 @@ jobs:
         id: release-sha
         working-directory: release-source
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      # Forks without npm credentials ship GitHub Release tarballs only; skip
+      # the npm publish job instead of failing it. Reads the repository-level
+      # secret (job-level `if` cannot read secrets directly).
+      - name: Detect npm publishing credentials
+        id: npm-token
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -n "$NPM_TOKEN" ]; then echo "enabled=true" >> "$GITHUB_OUTPUT"; else echo "enabled=false" >> "$GITHUB_OUTPUT"; fi
       - name: Verify exact-SHA main CI passed
         run: node .release-trust/.github/scripts/assert-release-ci.mjs
         env:
@@ -77,7 +87,7 @@ jobs:
 
   publish:
     needs: preflight
-    if: ${{ !inputs.registry_only }}
+    if: ${{ !inputs.registry_only && needs.preflight.outputs.npm_enabled == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: npm-publish
@@ -103,6 +113,47 @@ jobs:
       - run: pnpm publish -r --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  github-release:
+    needs: preflight
+    if: ${{ !inputs.registry_only }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.preflight.outputs.release_sha }}
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.x'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Verify packed package manifests
+        run: node .github/scripts/assert-no-workspace-protocol.mjs
+      - name: Pack publishable packages
+        run: |
+          mkdir -p release-assets
+          for dir in packages/mcp-core packages/mcp-server; do
+            (cd "$dir" && pnpm pack --pack-destination "$GITHUB_WORKSPACE/release-assets")
+          done
+          ls -l release-assets
+      - name: Attach tarballs to the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" release-assets/*.tgz --clobber
+          else
+            prerelease=()
+            case "$RELEASE_TAG" in *-*) prerelease=(--prerelease) ;; esac
+            gh release create "$RELEASE_TAG" release-assets/*.tgz --verify-tag \
+              --title "$RELEASE_TAG" --generate-notes "${prerelease[@]}"
+          fi
 
   registry:
     needs: [preflight, publish]
